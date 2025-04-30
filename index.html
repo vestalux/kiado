@@ -85,7 +85,7 @@
             border-radius: 4px 4px 0 0;
         }
         .tab button {
-            background-color: inherit;
+            background-color: #a8d4f5;
             float: left;
             border: none;
             outline: none;
@@ -96,7 +96,7 @@
             margin-top: 0;
         }
         .tab button:hover {
-            background-color: #ddd;
+            background-color: #7fc2f4;
         }
         .tab button.active {
             background-color: #3498db;
@@ -337,6 +337,21 @@
             displayReadings();
         }
         
+        // Get previous reading for an apartment before a given date
+        function getPreviousReading(apartment, currentDate) {
+            const readings = JSON.parse(localStorage.getItem('meterReadings')) || [];
+            const apartmentReadings = readings.filter(r => r.apartment === apartment);
+            
+            // Sort by date (newest first)
+            apartmentReadings.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // Find the reading just before the current one
+            const currentDateObj = new Date(currentDate);
+            const previousReadings = apartmentReadings.filter(r => new Date(r.date) < currentDateObj);
+            
+            return previousReadings.length > 0 ? previousReadings[0] : null;
+        }
+        
         // Display readings in history tab
         function displayReadings() {
             const historyContainer = document.getElementById('readingHistory');
@@ -386,6 +401,22 @@
                     <img src="${reading.waterPhoto}" alt="Vízóra fénykép">`;
                 } else {
                     entryHTML += '<p>Nincs vízóra fénykép</p>';
+                }
+
+                // Add consumption data if previous reading exists
+                const previousReading = getPreviousReading(reading.apartment, reading.date);
+                if (previousReading) {
+                    const electricityUsage = (reading.electricity - previousReading.electricity).toFixed(2);
+                    const waterUsage = (reading.water - previousReading.water).toFixed(2);
+                    
+                    const prevDate = new Date(previousReading.date).toLocaleDateString('hu-HU');
+                    entryHTML += `
+                        <div style="background-color: #e8f7e8; padding: 10px; border-radius: 4px; margin-top: 15px;">
+                            <h4>Fogyasztás (${prevDate} óta):</h4>
+                            <p><strong>Villany:</strong> ${electricityUsage} kWh</p>
+                            <p><strong>Víz:</strong> ${waterUsage} m³</p>
+                        </div>
+                    `;
                 }
                 
                 entryHTML += `<p><small>Rögzítve: ${new Date(reading.timestamp).toLocaleString('hu-HU')}</small></p>`;
