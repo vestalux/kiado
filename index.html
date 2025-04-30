@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lakások Óraállásai</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select, input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .preview {
+            margin-top: 10px;
+            text-align: center;
+        }
+        .imagePreview {
+            max-width: 100%;
+            max-height: 200px;
+            display: none;
+            margin-top: 10px;
+        }
+        .history {
+            margin-top: 40px;
+        }
+        .entry {
+            background-color: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .entry img {
+            max-width: 100%;
+            max-height: 150px;
+            display: block;
+            margin: 10px auto;
+        }
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 10px 16px;
+            transition: 0.3s;
+            font-size: 16px;
+            margin-top: 0;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #3498db;
+            color: white;
+        }
+        .tabcontent {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            background-color: white;
+        }
+        .visible {
+            display: block;
+        }
+        .alert {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .photo-section {
+            background-color: #eef7fe;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .photo-section h3 {
+            margin-top: 0;
+            color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lakások Óraállásai</h1>
+    
+    <div class="container">
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event, 'submit-reading')">Óraállás Rögzítése</button>
+            <button class="tablinks" onclick="openTab(event, 'view-history')">Előzmények</button>
+        </div>
+        
+        <div id="submit-reading" class="tabcontent visible">
+            <div id="successAlert" class="alert">Óraállás sikeresen rögzítve!</div>
+            
+            <form id="readingForm">
+                <div class="form-group">
+                    <label for="apartment">Lakás:</label>
+                    <select id="apartment" required>
+                        <option value="">Válasszon lakást</option>
+                        <option value="Mária Terézia u. 10 - Piros">Mária Terézia u. 10 - Piros</option>
+                        <option value="Mária Terézia u. 10 - Kék">Mária Terézia u. 10 - Kék</option>
+                        <option value="Mária Terézia u. 10 - Zöld">Mária Terézia u. 10 - Zöld</option>
+                        <option value="Kossuth Lajos u. 17 - Pink">Kossuth Lajos u. 17 - Pink</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="date">Dátum:</label>
+                    <input type="date" id="date" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="electricity">Villanyóra állása:</label>
+                    <input type="number" id="electricity" step="0.01" required placeholder="Adja meg az állást kWh-ban">
+                </div>
+                
+                <div class="photo-section">
+                    <h3>Villanyóra fénykép</h3>
+                    <div class="form-group">
+                        <label for="electricityPhoto">Villanyóra fényképe:</label>
+                        <input type="file" id="electricityPhoto" accept="image/*" capture="environment">
+                        <div class="preview">
+                            <img id="electricityPreview" class="imagePreview" alt="Villanyóra fénykép előnézet">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="water">Vízóra állása:</label>
+                    <input type="number" id="water" step="0.01" required placeholder="Adja meg az állást köbméterben">
+                </div>
+                
+                <div class="photo-section">
+                    <h3>Vízóra fénykép</h3>
+                    <div class="form-group">
+                        <label for="waterPhoto">Vízóra fényképe:</label>
+                        <input type="file" id="waterPhoto" accept="image/*" capture="environment">
+                        <div class="preview">
+                            <img id="waterPreview" class="imagePreview" alt="Vízóra fénykép előnézet">
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit">Rögzítés</button>
+            </form>
+        </div>
+        
+        <div id="view-history" class="tabcontent">
+            <div class="form-group">
+                <label for="historyApartment">Válasszon lakást:</label>
+                <select id="historyApartment">
+                    <option value="All">Összes lakás</option>
+                    <option value="Mária Terézia u. 10 - Piros">Mária Terézia u. 10 - Piros</option>
+                    <option value="Mária Terézia u. 10 - Kék">Mária Terézia u. 10 - Kék</option>
+                    <option value="Mária Terézia u. 10 - Zöld">Mária Terézia u. 10 - Zöld</option>
+                    <option value="Kossuth Lajos u. 17 - Pink">Kossuth Lajos u. 17 - Pink</option>
+                </select>
+            </div>
+            
+            <div class="history" id="readingHistory">
+                <!-- Reading history will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize date field to today's date
+        document.getElementById('date').valueAsDate = new Date();
+        
+        // Handle file input change for image preview - Electricity
+        document.getElementById('electricityPhoto').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('electricityPreview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Handle file input change for image preview - Water
+        document.getElementById('waterPhoto').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('waterPreview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Handle form submission
+        document.getElementById('readingForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const apartment = document.getElementById('apartment').value;
+            const date = document.getElementById('date').value;
+            const electricity = document.getElementById('electricity').value;
+            const water = document.getElementById('water').value;
+            const electricityPhotoInput = document.getElementById('electricityPhoto');
+            const waterPhotoInput = document.getElementById('waterPhoto');
+            
+            // Process images
+            const readingData = {
+                id: Date.now(),
+                apartment,
+                date,
+                electricity,
+                water,
+                electricityPhoto: null,
+                waterPhoto: null,
+                timestamp: new Date().toISOString()
+            };
+            
+            let photosToProcess = 0;
+            let photosProcessed = 0;
+            
+            function checkComplete() {
+                photosProcessed++;
+                if (photosProcessed === photosToProcess) {
+                    saveReading(readingData);
+                }
+            }
+            
+            // Process electricity photo if provided
+            if (electricityPhotoInput.files && electricityPhotoInput.files[0]) {
+                photosToProcess++;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    readingData.electricityPhoto = e.target.result;
+                    checkComplete();
+                };
+                reader.readAsDataURL(electricityPhotoInput.files[0]);
+            }
+            
+            // Process water photo if provided
+            if (waterPhotoInput.files && waterPhotoInput.files[0]) {
+                photosToProcess++;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    readingData.waterPhoto = e.target.result;
+                    checkComplete();
+                };
+                reader.readAsDataURL(waterPhotoInput.files[0]);
+            }
+            
+            // If no photos to process, save reading directly
+            if (photosToProcess === 0) {
+                saveReading(readingData);
+            }
+        });
+        
+        // Save reading to localStorage
+        function saveReading(readingData) {
+            // Get existing readings or initialize empty array
+            let readings = JSON.parse(localStorage.getItem('meterReadings')) || [];
+            
+            // Add new reading
+            readings.push(readingData);
+            
+            // Save to localStorage
+            localStorage.setItem('meterReadings', JSON.stringify(readings));
+            
+            // Reset form
+            document.getElementById('readingForm').reset();
+            document.getElementById('electricityPreview').style.display = 'none';
+            document.getElementById('waterPreview').style.display = 'none';
+            document.getElementById('date').valueAsDate = new Date();
+            
+            // Show success message
+            const alert = document.getElementById('successAlert');
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
+            
+            // Update history view
+            displayReadings();
+        }
+        
+        // Display readings in history tab
+        function displayReadings() {
+            const historyContainer = document.getElementById('readingHistory');
+            const selectedApartment = document.getElementById('historyApartment').value;
+            
+            // Get readings from localStorage
+            const readings = JSON.parse(localStorage.getItem('meterReadings')) || [];
+            
+            // Filter readings by selected apartment if needed
+            const filteredReadings = selectedApartment === 'All' 
+                ? readings 
+                : readings.filter(r => r.apartment === selectedApartment);
+            
+            // Sort readings by date (newest first)
+            filteredReadings.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // Clear history container
+            historyContainer.innerHTML = '';
+            
+            if (filteredReadings.length === 0) {
+                historyContainer.innerHTML = '<p>Nem található óraállás.</p>';
+                return;
+            }
+            
+            // Display each reading
+            filteredReadings.forEach(reading => {
+                const entryDiv = document.createElement('div');
+                entryDiv.className = 'entry';
+                
+                const formattedDate = new Date(reading.date).toLocaleDateString('hu-HU');
+                
+                let entryHTML = `
+                    <h3>${reading.apartment} - ${formattedDate}</h3>
+                    <p><strong>Villanyóra:</strong> ${reading.electricity} kWh</p>
+                    <p><strong>Vízóra:</strong> ${reading.water} m³</p>
+                `;
+                
+                if (reading.electricityPhoto) {
+                    entryHTML += `<h4>Villanyóra fénykép:</h4>
+                    <img src="${reading.electricityPhoto}" alt="Villanyóra fénykép">`;
+                } else {
+                    entryHTML += '<p>Nincs villanyóra fénykép</p>';
+                }
+                
+                if (reading.waterPhoto) {
+                    entryHTML += `<h4>Vízóra fénykép:</h4>
+                    <img src="${reading.waterPhoto}" alt="Vízóra fénykép">`;
+                } else {
+                    entryHTML += '<p>Nincs vízóra fénykép</p>';
+                }
+                
+                entryHTML += `<p><small>Rögzítve: ${new Date(reading.timestamp).toLocaleString('hu-HU')}</small></p>`;
+                
+                entryDiv.innerHTML = entryHTML;
+                historyContainer.appendChild(entryDiv);
+            });
+        }
+        
+        // Handle apartment filter change
+        document.getElementById('historyApartment').addEventListener('change', displayReadings);
+        
+        // Tab functionality
+        function openTab(evt, tabName) {
+            // Hide all tab content
+            const tabcontent = document.getElementsByClassName("tabcontent");
+            for (let i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("visible");
+            }
+            
+            // Remove active class from all tab buttons
+            const tablinks = document.getElementsByClassName("tablinks");
+            for (let i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            
+            // Show current tab and add active class to button
+            document.getElementById(tabName).classList.add("visible");
+            evt.currentTarget.classList.add("active");
+            
+            // If viewing history tab, update the displayed readings
+            if (tabName === 'view-history') {
+                displayReadings();
+            }
+        }
+        
+        // Initial display of readings
+        displayReadings();
+    </script>
+</body>
+</html>
