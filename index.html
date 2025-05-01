@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lakások Óraállásai</title>
+    <!-- Firebase SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.19.1/firebase-app-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.19.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.19.1/firebase-storage-compat.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -121,6 +125,14 @@
             border-radius: 4px;
             display: none;
         }
+        .error-alert {
+            padding: 10px;
+            background-color: #f44336;
+            color: white;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            display: none;
+        }
         .photo-section {
             background-color: #eef7fe;
             padding: 15px;
@@ -130,6 +142,24 @@
         .photo-section h3 {
             margin-top: 0;
             color: #2980b9;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -144,6 +174,7 @@
         
         <div id="submit-reading" class="tabcontent visible">
             <div id="successAlert" class="alert">Óraállás sikeresen rögzítve!</div>
+            <div id="errorAlert" class="error-alert">Hiba történt! Kérjük próbálja újra.</div>
             
             <form id="readingForm">
                 <div class="form-group">
@@ -196,6 +227,11 @@
                 
                 <button type="submit">Rögzítés</button>
             </form>
+            
+            <div class="loading" id="loadingIndicator">
+                <div class="loading-spinner"></div>
+                <p>Adatok feltöltése...</p>
+            </div>
         </div>
         
         <div id="view-history" class="tabcontent">
@@ -210,6 +246,11 @@
                 </select>
             </div>
             
+            <div class="loading" id="historyLoadingIndicator">
+                <div class="loading-spinner"></div>
+                <p>Adatok betöltése...</p>
+            </div>
+            
             <div class="history" id="readingHistory">
                 <!-- Reading history will be displayed here -->
             </div>
@@ -217,6 +258,27 @@
     </div>
 
     <script>
+        // Initialize Firebase with your config
+        const firebaseConfig = {
+            apiKey: "AIzaSyCjocQnZZsTc56sJ8IqjgyDINAm_LGzmi4",
+            authDomain: "kiado-9c73b.firebaseapp.com",
+            projectId: "kiado-9c73b",
+            storageBucket: "kiado-9c73b.firebasestorage.app",
+            messagingSenderId: "324133991236",
+            appId: "1:324133991236:web:b5fea4d264fb53e2161d11",
+            measurementId: "G-WD1GPRHF93"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        // Get Firestore and Storage references
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+        
+        // Collection reference for meter readings
+        const readingsCollection = db.collection('meterReadings');
+        
         // Initialize date field to today's date
         document.getElementById('date').valueAsDate = new Date();
         
@@ -249,181 +311,220 @@
         });
         
         // Handle form submission
-        document.getElementById('readingForm').addEventListener('submit', function(event) {
+        document.getElementById('readingForm').addEventListener('submit', async function(event) {
             event.preventDefault();
+            
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
             
             const apartment = document.getElementById('apartment').value;
             const date = document.getElementById('date').value;
-            const electricity = document.getElementById('electricity').value;
-            const water = document.getElementById('water').value;
+            const electricity = parseFloat(document.getElementById('electricity').value);
+            const water = parseFloat(document.getElementById('water').value);
             const electricityPhotoInput = document.getElementById('electricityPhoto');
             const waterPhotoInput = document.getElementById('waterPhoto');
             
-            // Process images
-            const readingData = {
-                id: Date.now(),
-                apartment,
-                date,
-                electricity,
-                water,
-                electricityPhoto: null,
-                waterPhoto: null,
-                timestamp: new Date().toISOString()
-            };
-            
-            let photosToProcess = 0;
-            let photosProcessed = 0;
-            
-            function checkComplete() {
-                photosProcessed++;
-                if (photosProcessed === photosToProcess) {
-                    saveReading(readingData);
+            try {
+                // Create reading document data
+                const readingData = {
+                    apartment,
+                    date,
+                    electricity,
+                    water,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                // Upload electricity photo if provided
+                if (electricityPhotoInput.files && electricityPhotoInput.files[0]) {
+                    const electricityFile = electricityPhotoInput.files[0];
+                    const electricityFileName = `${apartment}_electricity_${Date.now()}.${electricityFile.name.split('.').pop()}`;
+                    const electricityRef = storage.ref(`meter_photos/${electricityFileName}`);
+                    
+                    await electricityRef.put(electricityFile);
+                    const electricityUrl = await electricityRef.getDownloadURL();
+                    readingData.electricityPhotoUrl = electricityUrl;
                 }
-            }
-            
-            // Process electricity photo if provided
-            if (electricityPhotoInput.files && electricityPhotoInput.files[0]) {
-                photosToProcess++;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    readingData.electricityPhoto = e.target.result;
-                    checkComplete();
-                };
-                reader.readAsDataURL(electricityPhotoInput.files[0]);
-            }
-            
-            // Process water photo if provided
-            if (waterPhotoInput.files && waterPhotoInput.files[0]) {
-                photosToProcess++;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    readingData.waterPhoto = e.target.result;
-                    checkComplete();
-                };
-                reader.readAsDataURL(waterPhotoInput.files[0]);
-            }
-            
-            // If no photos to process, save reading directly
-            if (photosToProcess === 0) {
-                saveReading(readingData);
+                
+                // Upload water photo if provided
+                if (waterPhotoInput.files && waterPhotoInput.files[0]) {
+                    const waterFile = waterPhotoInput.files[0];
+                    const waterFileName = `${apartment}_water_${Date.now()}.${waterFile.name.split('.').pop()}`;
+                    const waterRef = storage.ref(`meter_photos/${waterFileName}`);
+                    
+                    await waterRef.put(waterFile);
+                    const waterUrl = await waterRef.getDownloadURL();
+                    readingData.waterPhotoUrl = waterUrl;
+                }
+                
+                // Save reading to Firestore
+                await readingsCollection.add(readingData);
+                
+                // Reset form
+                document.getElementById('readingForm').reset();
+                document.getElementById('electricityPreview').style.display = 'none';
+                document.getElementById('waterPreview').style.display = 'none';
+                document.getElementById('date').valueAsDate = new Date();
+                
+                // Hide loading indicator
+                document.getElementById('loadingIndicator').style.display = 'none';
+                
+                // Show success message
+                const alert = document.getElementById('successAlert');
+                alert.style.display = 'block';
+                setTimeout(() => {
+                    alert.style.display = 'none';
+                }, 3000);
+                
+                // Update history view
+                if (document.getElementById('view-history').classList.contains('visible')) {
+                    await displayReadings();
+                }
+                
+            } catch (error) {
+                console.error("Error adding document: ", error);
+                // Hide loading indicator
+                document.getElementById('loadingIndicator').style.display = 'none';
+                
+                // Show error message
+                const errorAlert = document.getElementById('errorAlert');
+                errorAlert.textContent = `Hiba történt: ${error.message}`;
+                errorAlert.style.display = 'block';
+                setTimeout(() => {
+                    errorAlert.style.display = 'none';
+                }, 5000);
             }
         });
         
-        // Save reading to localStorage
-        function saveReading(readingData) {
-            // Get existing readings or initialize empty array
-            let readings = JSON.parse(localStorage.getItem('meterReadings')) || [];
-            
-            // Add new reading
-            readings.push(readingData);
-            
-            // Save to localStorage
-            localStorage.setItem('meterReadings', JSON.stringify(readings));
-            
-            // Reset form
-            document.getElementById('readingForm').reset();
-            document.getElementById('electricityPreview').style.display = 'none';
-            document.getElementById('waterPreview').style.display = 'none';
-            document.getElementById('date').valueAsDate = new Date();
-            
-            // Show success message
-            const alert = document.getElementById('successAlert');
-            alert.style.display = 'block';
-            setTimeout(() => {
-                alert.style.display = 'none';
-            }, 3000);
-            
-            // Update history view
-            displayReadings();
-        }
-        
         // Get previous reading for an apartment before a given date
-        function getPreviousReading(apartment, currentDate) {
-            const readings = JSON.parse(localStorage.getItem('meterReadings')) || [];
-            const apartmentReadings = readings.filter(r => r.apartment === apartment);
-            
-            // Sort by date (newest first)
-            apartmentReadings.sort((a, b) => new Date(b.date) - new Date(a.date));
-            
-            // Find the reading just before the current one
-            const currentDateObj = new Date(currentDate);
-            const previousReadings = apartmentReadings.filter(r => new Date(r.date) < currentDateObj);
-            
-            return previousReadings.length > 0 ? previousReadings[0] : null;
+        async function getPreviousReading(apartment, currentDate) {
+            try {
+                const snapshot = await readingsCollection
+                    .where('apartment', '==', apartment)
+                    .where('date', '<', currentDate)
+                    .orderBy('date', 'desc')
+                    .limit(1)
+                    .get();
+                
+                if (!snapshot.empty) {
+                    const doc = snapshot.docs[0];
+                    return { id: doc.id, ...doc.data() };
+                }
+                
+                return null;
+            } catch (error) {
+                console.error("Error getting previous reading: ", error);
+                return null;
+            }
         }
         
         // Display readings in history tab
-        function displayReadings() {
+        async function displayReadings() {
             const historyContainer = document.getElementById('readingHistory');
             const selectedApartment = document.getElementById('historyApartment').value;
             
-            // Get readings from localStorage
-            const readings = JSON.parse(localStorage.getItem('meterReadings')) || [];
-            
-            // Filter readings by selected apartment if needed
-            const filteredReadings = selectedApartment === 'All' 
-                ? readings 
-                : readings.filter(r => r.apartment === selectedApartment);
-            
-            // Sort readings by date (newest first)
-            filteredReadings.sort((a, b) => new Date(b.date) - new Date(a.date));
-            
-            // Clear history container
+            // Show loading indicator
+            document.getElementById('historyLoadingIndicator').style.display = 'block';
             historyContainer.innerHTML = '';
             
-            if (filteredReadings.length === 0) {
-                historyContainer.innerHTML = '<p>Nem található óraállás.</p>';
-                return;
-            }
-            
-            // Display each reading
-            filteredReadings.forEach(reading => {
-                const entryDiv = document.createElement('div');
-                entryDiv.className = 'entry';
+            try {
+                // Create query based on selection
+                let query = readingsCollection.orderBy('date', 'desc');
                 
-                const formattedDate = new Date(reading.date).toLocaleDateString('hu-HU');
-                
-                let entryHTML = `
-                    <h3>${reading.apartment} - ${formattedDate}</h3>
-                    <p><strong>Villanyóra:</strong> ${reading.electricity} kWh</p>
-                    <p><strong>Vízóra:</strong> ${reading.water} m³</p>
-                `;
-                
-                if (reading.electricityPhoto) {
-                    entryHTML += `<h4>Villanyóra fénykép:</h4>
-                    <img src="${reading.electricityPhoto}" alt="Villanyóra fénykép">`;
-                } else {
-                    entryHTML += '<p>Nincs villanyóra fénykép</p>';
+                if (selectedApartment !== 'All') {
+                    query = query.where('apartment', '==', selectedApartment);
                 }
                 
-                if (reading.waterPhoto) {
-                    entryHTML += `<h4>Vízóra fénykép:</h4>
-                    <img src="${reading.waterPhoto}" alt="Vízóra fénykép">`;
-                } else {
-                    entryHTML += '<p>Nincs vízóra fénykép</p>';
+                // Execute query
+                const snapshot = await query.get();
+                
+                // Hide loading indicator
+                document.getElementById('historyLoadingIndicator').style.display = 'none';
+                
+                if (snapshot.empty) {
+                    historyContainer.innerHTML = '<p>Nem található óraállás.</p>';
+                    return;
                 }
-
-                // Add consumption data if previous reading exists
-                const previousReading = getPreviousReading(reading.apartment, reading.date);
-                if (previousReading) {
-                    const electricityUsage = (reading.electricity - previousReading.electricity).toFixed(2);
-                    const waterUsage = (reading.water - previousReading.water).toFixed(2);
+                
+                // Create a map for apartment readings to find previous readings efficiently
+                const apartmentReadings = {};
+                
+                // Process all readings first
+                snapshot.forEach(doc => {
+                    const reading = doc.data();
+                    const apartment = reading.apartment;
                     
-                    const prevDate = new Date(previousReading.date).toLocaleDateString('hu-HU');
-                    entryHTML += `
-                        <div style="background-color: #e8f7e8; padding: 10px; border-radius: 4px; margin-top: 15px;">
-                            <h4>Fogyasztás (${prevDate} óta):</h4>
-                            <p><strong>Villany:</strong> ${electricityUsage} kWh</p>
-                            <p><strong>Víz:</strong> ${waterUsage} m³</p>
-                        </div>
+                    if (!apartmentReadings[apartment]) {
+                        apartmentReadings[apartment] = [];
+                    }
+                    
+                    apartmentReadings[apartment].push({
+                        id: doc.id,
+                        ...reading
+                    });
+                });
+                
+                // Now display each reading
+                snapshot.forEach(doc => {
+                    const reading = doc.data();
+                    const entryDiv = document.createElement('div');
+                    entryDiv.className = 'entry';
+                    
+                    // Convert server timestamp to Date object
+                    const timestamp = reading.timestamp ? reading.timestamp.toDate() : new Date();
+                    const formattedDate = new Date(reading.date).toLocaleDateString('hu-HU');
+                    
+                    let entryHTML = `
+                        <h3>${reading.apartment} - ${formattedDate}</h3>
+                        <p><strong>Villanyóra:</strong> ${reading.electricity} kWh</p>
+                        <p><strong>Vízóra:</strong> ${reading.water} m³</p>
                     `;
-                }
+                    
+                    if (reading.electricityPhotoUrl) {
+                        entryHTML += `<h4>Villanyóra fénykép:</h4>
+                        <img src="${reading.electricityPhotoUrl}" alt="Villanyóra fénykép">`;
+                    } else {
+                        entryHTML += '<p>Nincs villanyóra fénykép</p>';
+                    }
+                    
+                    if (reading.waterPhotoUrl) {
+                        entryHTML += `<h4>Vízóra fénykép:</h4>
+                        <img src="${reading.waterPhotoUrl}" alt="Vízóra fénykép">`;
+                    } else {
+                        entryHTML += '<p>Nincs vízóra fénykép</p>';
+                    }
+                    
+                    // Find previous reading for this apartment
+                    const readings = apartmentReadings[reading.apartment];
+                    if (readings && readings.length > 1) {
+                        const currentIndex = readings.findIndex(r => r.id === doc.id);
+                        if (currentIndex < readings.length - 1) {
+                            const previousReading = readings[currentIndex + 1];
+                            
+                            const electricityUsage = (reading.electricity - previousReading.electricity).toFixed(2);
+                            const waterUsage = (reading.water - previousReading.water).toFixed(2);
+                            
+                            const prevDate = new Date(previousReading.date).toLocaleDateString('hu-HU');
+                            entryHTML += `
+                                <div style="background-color: #e8f7e8; padding: 10px; border-radius: 4px; margin-top: 15px;">
+                                    <h4>Fogyasztás (${prevDate} óta):</h4>
+                                    <p><strong>Villany:</strong> ${electricityUsage} kWh</p>
+                                    <p><strong>Víz:</strong> ${waterUsage} m³</p>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    entryHTML += `<p><small>Rögzítve: ${timestamp.toLocaleString('hu-HU')}</small></p>`;
+                    
+                    entryDiv.innerHTML = entryHTML;
+                    historyContainer.appendChild(entryDiv);
+                });
                 
-                entryHTML += `<p><small>Rögzítve: ${new Date(reading.timestamp).toLocaleString('hu-HU')}</small></p>`;
-                
-                entryDiv.innerHTML = entryHTML;
-                historyContainer.appendChild(entryDiv);
-            });
+            } catch (error) {
+                console.error("Error getting documents: ", error);
+                document.getElementById('historyLoadingIndicator').style.display = 'none';
+                historyContainer.innerHTML = `<p>Hiba történt az adatok betöltése közben: ${error.message}</p>`;
+            }
         }
         
         // Handle apartment filter change
@@ -453,8 +554,10 @@
             }
         }
         
-        // Initial display of readings
-        displayReadings();
+        // Initial display of readings when history tab is first opened
+        document.addEventListener('DOMContentLoaded', function() {
+            // No need to call displayReadings() here as it will be called when the tab is clicked
+        });
     </script>
 </body>
 </html>
